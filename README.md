@@ -69,119 +69,45 @@ app.get('/users', async c => {
 })
 ```
 
-## 自定义注解
+## 自定义字段
 
-### 1. @CreateAtColumn & @UpdateAtColumn
+实际业务中，我们经常会需要字段自动生成，例如主键使用分布式雪花id，时间字段自动生成，创建者id字段自动从上下文获取当前用户id，本文以自定义主键场景为例，介绍如何自定义装饰器和生成逻辑
 
-声明，默认Date类型，若需要改成其他类型如Dayjs，需要通过 `setTimeGlobalColumn` 设置转换逻辑
+### 1. 创建装饰器
 
 ```ts
-import { CreateAtColumn, UpdateAtColumn } from '@seepine/hono-typeorm'
+import { buildColumn } from '@seepine/hono-typeorm'
 
-@Entity('sys_user')
-export class User {
-  // ...
-
-  @CreateAtColumn()
-  createAt: Dayjs
-
-  @UpdateAtColumn()
-  updateAt: Dayjs
+export function PrimarySnowflakeColumn(options?: ColumnOptions): PropertyDecorator {
+  return buildColumn({
+    // 指定仅在创建时生成，若需要新增和更新都生成值，可改为 createAndUpdate
+    generateTrigger: 'create',
+    // 实现生成逻辑，例如使用雪花算法生成id
+    generate: (): any => {
+      return `id_${id++}`
+    },
+    // 这里指定默认的字段配置
+    columnOptions: {
+      type: 'varchar',
+      length: 50,
+      primary: true, // 注意，若是主键装饰器，必须要此配置
+      ...options,
+    },
+  })
 }
 ```
+
+### 2. 使用
 
 设置生成逻辑（可选）
 
 ```ts
-import { setTimeGlobalColumn } from '@seepine/hono-typeorm'
-
-setTimeGlobalColumn({
-  type: 'varchar', // 默认字符串
-  length: 50, // 默认长度50
-  // 设置日期生成和转换
-  transformer: {
-    generate: () => {
-      return dayjs()
-    },
-    to: (v?: Dayjs): string | undefined => {
-      if (!isDayjs(v)) {
-        return undefined
-      }
-      return v.toISOString()
-    },
-    from: (d?: string): Dayjs | undefined => (d ? dayjs(d) : undefined),
-  },
-})
-```
-
-### 2. @PrimaryColumn
-
-声明
-
-```ts
-import { PrimaryColumn } from '@seepine/hono-typeorm'
-
 @Entity('sys_user')
 export class User {
-  // 使用自定义主键注解
-  @PrimaryColumn()
+  // 使用自定义主键注解，例如雪花id生成策略
+  @PrimarySnowflakeColumn()
   id: string
 }
-```
-
-设置生成逻辑（必要）
-
-```ts
-import { setPrimaryGlobalColumn } from '@seepine/hono-typeorm'
-
-setPrimaryGlobalColumn({
-  type: 'varchar', // 默认字符串
-  length: 36, // 默认长度36
-  transformer: {
-    // 必填，返回主键生成策略
-    generate: () => {
-      return `id_${id++}`
-    },
-  },
-})
-```
-
-### 3. @CreateIdColumn & @UpdateIdColumn
-
-声明
-
-```ts
-import { CreateIdColumn, UpdateIdColumn } from '@seepine/hono-typeorm'
-
-@Entity('sys_user')
-export class User {
-  // ...
-
-  @CreateIdColumn()
-  createId: string
-
-  @UpdateIdColumn()
-  updateId: string
-}
-```
-
-设置生成逻辑（必要）
-
-```ts
-import { setUserIdGlobalColumn } from '@seepine/hono-typeorm'
-
-setUserIdGlobalColumn({
-  type: 'varchar', // 默认字符串
-  length: 36, // 默认长度36
-  // 必填，设置日期生成和转换
-  transformer: {
-    generate: () => {
-      // 例如从请求上下文获取当前用户信息
-      // 如何在全局中获取上下文可参考 @seepine/hono-global-context
-      return getCurrentContext().var.user.id
-    },
-  },
-})
 ```
 
 ## 更多用法
