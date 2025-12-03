@@ -1,39 +1,81 @@
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
-import {
-  createTypeormMiddleware,
-  PrimaryColumn,
-  CreateAtColumn,
-  setUserIdGlobalColumn,
-  UpdateAtColumn,
-  setPrimaryGlobalColumn,
-  CreateIdColumn,
-  UpdateIdColumn,
-} from './index'
-import { Column, Entity, type DataSource } from 'typeorm'
+import { Column, Entity, type ColumnOptions, type DataSource } from 'typeorm'
+import { buildColumn, createTypeormMiddleware } from './index'
+
+let id = 0
+
+// 自定义主键装饰器
+export function PrimarySnowflakeColumn(options?: ColumnOptions): PropertyDecorator {
+  return buildColumn({
+    generateTrigger: 'create',
+    generate: (): any => {
+      // 这里可以实现自定义主键生成逻辑，例如使用雪花id等
+      return `id_${id++}`
+    },
+    columnOptions: {
+      type: 'varchar',
+      length: 50,
+      primary: true,
+      ...options,
+    },
+  })
+}
+
+export function CreateAtColumn(options?: ColumnOptions): PropertyDecorator {
+  return buildColumn({
+    generateTrigger: 'create',
+    generate: () => new Date(),
+    transformer: {
+      to: (value: Date): string | undefined => {
+        return value?.toISOString()
+      },
+      from: (dbValue: string): Date | undefined => {
+        return dbValue ? new Date(dbValue) : undefined
+      },
+    },
+    columnOptions: {
+      type: 'varchar',
+      length: 36,
+      ...options,
+    },
+  })
+}
+
+export function UpdateAtColumn(options?: ColumnOptions): PropertyDecorator {
+  return buildColumn({
+    generateTrigger: 'createAndUpdate',
+    generate: () => new Date(),
+    transformer: {
+      to: (value: Date): string | undefined => {
+        return value?.toISOString()
+      },
+      from: (dbValue: string): Date | undefined => {
+        return dbValue ? new Date(dbValue) : undefined
+      },
+    },
+    columnOptions: {
+      type: 'varchar',
+      length: 36,
+      ...options,
+    },
+  })
+}
 
 @Entity('sys_user')
 export class User {
   // 使用自定义主键注解，例如雪花id生成策略
-  @PrimaryColumn()
+  @PrimarySnowflakeColumn()
   id: string
 
-  @Column('varchar', { length: 100 })
+  @Column('varchar')
   name: string
 
-  // 使用自定义创建时间注解
   @CreateAtColumn()
   createAt: Date
 
-  // 使用自定义创建用户ID注解
-  @CreateIdColumn()
-  createId: string
-
   @UpdateAtColumn()
   updateAt: Date
-
-  @UpdateIdColumn()
-  updateId: string
 }
 
 declare global {
@@ -41,24 +83,6 @@ declare global {
 }
 
 describe('CustomColumn', async () => {
-  let id = 1
-  // 使用 hono-typeorm 的 @PrimaryColumn 自定义主键生成策略，例如使用雪花id
-  setPrimaryGlobalColumn({
-    transformer: {
-      generate: () => {
-        return `id_${id++}`
-      },
-    },
-  })
-  // 使用 hono-typeorm 的 @CreateIdColumn 自定义用户ID策略，例如从上下文获取当前用户ID
-  setUserIdGlobalColumn({
-    transformer: {
-      generate: (): any => {
-        return `uid_0`
-      },
-    },
-  })
-
   const app = new Hono()
   const { orm, typeormMiddleware } = createTypeormMiddleware({
     type: 'better-sqlite3',
@@ -89,50 +113,50 @@ describe('CustomColumn', async () => {
   app.get('/user/list', async c => {
     return c.json(await c.var.orm.manager.find(User))
   })
+
   it('Add', async () => {
     const req = new Request('http://localhost/user/add')
     const res = await app.request(req)
     expect(res).not.toBeNull()
     expect(res.status).toBe(200)
-    const resp = await res.json()
+    const resp: User = await res.json()
     // {
+    //   id: 'id_1',
     //   name: 'Alice',
-    //   createAt: '2025-12-03T12:54:21.014Z',
-    //   createId: 'uid_0',
-    //   updateAt: '2025-12-03T12:54:21.014Z',
-    //   updateId: 'uid_0',
-    //   id: 'id_1'
+    //   createAt: '2025-12-03T14:30:35.372Z',
+    //   updateAt: '2025-12-03T14:30:35.372Z'
     // }
     expect(resp).toBeTypeOf('object')
     expect(resp.name).toBe('Alice')
-    expect(resp.createId).toBe('uid_0')
+    expect(resp.id).toBe('id_1')
   })
+
   it('Update', async () => {
     const req = new Request('http://localhost/user/update')
     const res = await app.request(req)
     expect(res).not.toBeNull()
     expect(res.status).toBe(200)
-    const resp = await res.json()
+    const resp: User = await res.json()
     // {
     //   id: 'id_1',
     //   name: 'Bob',
-    //   createAt: '2025-12-03T12:56:00.991Z',
-    //   createId: 'uid_0',
-    //   updateAt: '2025-12-03T12:56:03.510Z',
-    //   updateId: 'uid_0'
+    //   createAt: '2025-12-03T14:31:09.386Z',
+    //   updateAt: '2025-12-03T14:31:09.651Z'
     // }
     expect(resp).toBeTypeOf('object')
     expect(resp.name).toBe('Bob')
     expect(resp.updateAt).not.toBe(resp.createAt)
   })
+
   it('List', async () => {
     const req = new Request('http://localhost/user/list')
     const res = await app.request(req)
     expect(res).not.toBeNull()
     expect(res.status).toBe(200)
-    const resp = await res.json()
-    // [ { id: '84a68b70-3e3b-4d9f-82d3-2e5dcca9b0b9', name: 'Bob' } ]
+    const resp: User[] = await res.json()
+    // [ { id: 'id_1', name: 'Bob' } ]
     expect(resp).toBeTypeOf('object')
     expect(resp[0].name).toBe('Bob')
+    expect(resp[0].updateAt).not.toBe(resp[0].createAt)
   })
 })

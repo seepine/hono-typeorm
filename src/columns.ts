@@ -7,273 +7,118 @@ import {
   type InsertEvent,
   type LoadEvent,
   type UpdateEvent,
+  type ValueTransformer,
 } from 'typeorm'
 import type { ColumnMetadataArgs } from 'typeorm/metadata-args/ColumnMetadataArgs.js'
+import type { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js'
 
-type CustomTransformer = {
-  generate: () => any
-  to: (v?: any) => any | undefined
-  from: (d?: any) => any | undefined
-}
-type CustomColumn = {
-  type: ColumnType
-  length: number
-  transformer: CustomTransformer
-}
-type CustomTransformerType =
-  | 'createAtColumn'
-  | 'updateAtColumn'
-  | 'primaryColumn'
-  | 'createIdColumn'
-  | 'updateIdColumn'
-type CustomTransformerWithType = CustomTransformer & { type: CustomTransformerType }
-
-let timeGlobalColumn: CustomColumn = {
-  type: 'varchar',
-  length: 50,
-  transformer: {
-    generate: (): any => {
-      return new Date()
-    },
-    to: (v?: any): string | undefined => {
-      if (!(v instanceof Date)) {
-        return undefined
-      }
-      return v.toISOString()
-    },
-    from: (d?: string): any | undefined => {
-      return d ? new Date(d) : undefined
-    },
-  },
-}
-export function setTimeGlobalColumn(custom: Partial<CustomColumn>) {
-  if (custom.transformer !== undefined) {
-    timeGlobalColumn.transformer = custom.transformer
-  }
-  if (custom.type !== undefined) {
-    timeGlobalColumn.type = custom.type
-  }
-  if (custom.length !== undefined) {
-    timeGlobalColumn.length = custom.length
-  }
+type GenerateType = {
+  /**
+   * 触发时机
+   */
+  generateTrigger?: 'create' | 'update' | 'createAndUpdate'
+  /**
+   * 生成逻辑
+   * @returns 值
+   */
+  generate?: (meta: ColumnMetadata) => any
 }
 
-export function CreateAtColumn(options?: ColumnOptions): PropertyDecorator {
+type BuildColumnOptions = GenerateType & {
+  /**
+   * 值转换为数据库存储格式
+   *
+   * to 为对象值转为数据库值，from 为数据库值转为对象值
+   * @example
+   * ```ts
+   * transformer:{
+   *   to: (value:any): string | undefined =>{
+   *     return value?.toISOString()
+   *   },
+   *   from: (dbValue:string): any | undefined=>{
+   *     return dbValue ? new Date(dbValue) : undefined
+   *   }
+   * }
+   * ```
+   */
+  transformer?: ValueTransformer
+  /**
+   * 其他列选项，例如可以在定义装饰器时指定字段类型、长度等
+   */
+  columnOptions?: Omit<ColumnOptions, 'transformer'>
+}
+
+/**
+ * 构建列装饰器
+ *
+ * @example
+ * ```ts
+ * export function CreateAtColumn(options?: ColumnOptions): PropertyDecorator {
+ *   return buildColumn({
+ *     generateTrigger: 'create',
+ *     generate: (): any => {
+ *       return dayjs()
+ *     },
+ *     transformer: {
+ *       to: (value: Dayjs): string | undefined =>{
+ *         return value?.toISOString()
+ *       },
+ *       from: (dbValue: string): Dayjs | undefined=>{
+ *         return dbValue ? dayjs(dbValue) : undefined
+ *       }
+ *     },
+ *     columnOptions: {
+ *       type: 'varchar',
+ *       length: 36,
+ *       ...options
+ *     },
+ *   })
+ * }
+ * ```
+ */
+export const buildColumn = (opts: BuildColumnOptions): PropertyDecorator => {
+  if (opts.generateTrigger !== undefined) {
+    if (opts.generate === undefined) {
+      throw new Error('generate is required when generateTrigger is set')
+    }
+  }
+  if (opts.generate !== undefined) {
+    if (opts.generateTrigger === undefined) {
+      throw new Error('generateTrigger is required when generate is set')
+    }
+  }
   return function (object: Object, propertyName: string) {
     getMetadataArgsStorage().columns.push({
       target: object.constructor,
       propertyName: propertyName,
       options: {
-        type: timeGlobalColumn.type,
-        length: timeGlobalColumn.length,
         transformer: {
-          type: 'createAtColumn',
-          generate: (): any => {
-            return timeGlobalColumn.transformer.generate()
+          generateTrigger: opts.generateTrigger,
+          generate: opts.generate,
+          to: val => {
+            return opts.transformer?.to ? opts.transformer?.to(val) : val
           },
-          to: timeGlobalColumn.transformer.to
-            ? (v?: any): string | undefined => {
-                return timeGlobalColumn.transformer.to(v)
-              }
-            : undefined,
-          from: (d?: string): any | undefined => {
-            return timeGlobalColumn.transformer.from(d)
+          from: dbVal => {
+            return opts.transformer?.from ? opts.transformer?.from(dbVal) : dbVal
           },
-        },
-        ...options,
-      } as ColumnOptions,
+        } as ValueTransformer,
+        ...opts.columnOptions,
+      },
     } as ColumnMetadataArgs)
   } as any
 }
 
-export function UpdateAtColumn(options?: ColumnOptions): PropertyDecorator {
-  return function (object: Object, propertyName: string) {
-    getMetadataArgsStorage().columns.push({
-      target: object.constructor,
-      propertyName: propertyName,
-      options: {
-        type: timeGlobalColumn.type,
-        length: timeGlobalColumn.length,
-        transformer: {
-          type: 'updateAtColumn',
-          generate: (): any => {
-            return timeGlobalColumn.transformer.generate()
-          },
-          to: (v?: any): string | undefined => {
-            return timeGlobalColumn.transformer.to(v)
-          },
-          from: (d?: string): any | undefined => {
-            return timeGlobalColumn.transformer.from(d)
-          },
-        },
-        ...options,
-      } as ColumnOptions,
-    } as ColumnMetadataArgs)
-  } as any
-}
-
-let primaryGlobalColumn: CustomColumn = {
-  type: 'varchar',
-  length: 36,
-  transformer: {
-    generate: (): any => {
-      throw new Error('Not implemented, please setPrimaryGlobalColumn first')
-    },
-    to: (v?: any): string | undefined => {
-      return v
-    },
-    from: (d?: string): any | undefined => {
-      return d
-    },
-  },
-}
-
-export function setPrimaryGlobalColumn(
-  custom: Partial<Omit<CustomColumn, 'transformer'> & { transformer: Partial<CustomTransformer> }>,
-) {
-  if (custom.transformer !== undefined) {
-    if (custom.transformer.generate !== undefined) {
-      primaryGlobalColumn.transformer.generate = custom.transformer.generate
-    }
-    if (custom.transformer.to !== undefined) {
-      primaryGlobalColumn.transformer.to = custom.transformer.to
-    }
-    if (custom.transformer.from !== undefined) {
-      primaryGlobalColumn.transformer.from = custom.transformer.from
-    }
-  }
-  if (custom.type !== undefined) {
-    primaryGlobalColumn.type = custom.type
-  }
-  if (custom.length !== undefined) {
-    primaryGlobalColumn.length = custom.length
-  }
-}
-
-export function PrimaryColumn(options?: ColumnOptions): PropertyDecorator {
-  return function (object: Object, propertyName: string) {
-    getMetadataArgsStorage().columns.push({
-      target: object.constructor,
-      propertyName: propertyName,
-      options: {
-        type: primaryGlobalColumn.type,
-        length: primaryGlobalColumn.length,
-        primary: true,
-        transformer: {
-          type: 'primaryColumn',
-          generate: (): any => {
-            return primaryGlobalColumn.transformer.generate()
-          },
-          to: (v?: any): string | undefined => {
-            return primaryGlobalColumn.transformer.to(v)
-          },
-          from: (d?: string): any | undefined => {
-            return primaryGlobalColumn.transformer.from(d)
-          },
-        },
-        ...options,
-      } as ColumnOptions,
-    } as ColumnMetadataArgs)
-  } as any
-}
-
-let userIdGlobalColumn: CustomColumn = {
-  type: 'varchar',
-  length: 36,
-  transformer: {
-    generate: (): any => {
-      throw new Error('Not implemented, please userIdGlobalColumn first')
-    },
-    to: (v?: any): string | undefined => {
-      return v
-    },
-    from: (d?: string): any | undefined => {
-      return d
-    },
-  },
-}
-
-export function setUserIdGlobalColumn(
-  custom: Partial<Omit<CustomColumn, 'transformer'> & { transformer: Partial<CustomTransformer> }>,
-) {
-  if (custom.transformer !== undefined) {
-    if (custom.transformer.generate !== undefined) {
-      userIdGlobalColumn.transformer.generate = custom.transformer.generate
-    }
-    if (custom.transformer.to !== undefined) {
-      userIdGlobalColumn.transformer.to = custom.transformer.to
-    }
-    if (custom.transformer.from !== undefined) {
-      userIdGlobalColumn.transformer.from = custom.transformer.from
-    }
-  }
-  if (custom.type !== undefined) {
-    userIdGlobalColumn.type = custom.type
-  }
-  if (custom.length !== undefined) {
-    userIdGlobalColumn.length = custom.length
-  }
-}
-
-export function CreateIdColumn(options?: ColumnOptions): PropertyDecorator {
-  return function (object: Object, propertyName: string) {
-    getMetadataArgsStorage().columns.push({
-      target: object.constructor,
-      propertyName: propertyName,
-      options: {
-        type: userIdGlobalColumn.type,
-        length: userIdGlobalColumn.length,
-        transformer: {
-          type: 'createIdColumn',
-          generate: (): any => {
-            return userIdGlobalColumn.transformer.generate()
-          },
-          to: (v?: any): string | undefined => {
-            return userIdGlobalColumn.transformer.to(v)
-          },
-          from: (d?: string): any | undefined => {
-            return userIdGlobalColumn.transformer.from(d)
-          },
-        },
-        ...options,
-      } as ColumnOptions,
-    } as ColumnMetadataArgs)
-  } as any
-}
-
-export function UpdateIdColumn(options?: ColumnOptions): PropertyDecorator {
-  return function (object: Object, propertyName: string) {
-    getMetadataArgsStorage().columns.push({
-      target: object.constructor,
-      propertyName: propertyName,
-      options: {
-        type: userIdGlobalColumn.type,
-        length: userIdGlobalColumn.length,
-        transformer: {
-          type: 'updateIdColumn',
-          generate: (): any => {
-            return userIdGlobalColumn.transformer.generate()
-          },
-          to: (v?: any): string | undefined => {
-            return userIdGlobalColumn.transformer.to(v)
-          },
-          from: (d?: string): any | undefined => {
-            return userIdGlobalColumn.transformer.from(d)
-          },
-        },
-        ...options,
-      } as ColumnOptions,
-    } as ColumnMetadataArgs)
-  } as any
-}
-const getCustomTransformer = (transformer: any): CustomTransformerWithType | undefined => {
+const getGenerator = (transformer: any): GenerateType | undefined => {
   if (transformer === undefined) {
     return undefined
   }
   if (Array.isArray(transformer)) {
     return undefined
   }
-  if (transformer.type === undefined) {
+  if (transformer.generateTrigger === undefined) {
+    return undefined
+  }
+  if (transformer.generate === undefined) {
     return undefined
   }
   return transformer
@@ -294,31 +139,28 @@ export class AutoFillValueSubscriber implements EntitySubscriberInterface {
       if (event.entity[item.propertyName] !== undefined) {
         continue
       }
-      const customTransformer = getCustomTransformer(item.transformer)
-      if (customTransformer === undefined) {
+      const generator = getGenerator(item.transformer)
+      if (generator === undefined) {
         continue
       }
-      const customType = customTransformer.type
       if (
-        customType === 'createAtColumn' ||
-        customType === 'updateAtColumn' ||
-        customType === 'createIdColumn' ||
-        customType === 'updateIdColumn'
+        generator.generateTrigger === 'create' ||
+        generator.generateTrigger === 'createAndUpdate'
       ) {
-        event.entity[item.propertyName] = customTransformer.generate()
+        event.entity[item.propertyName] = generator.generate?.(item)
       }
     }
     // 处理主键
     for await (const item of event.metadata.primaryColumns) {
-      if (event.entity[item.propertyName] !== undefined) {
+      const generator = getGenerator(item.transformer)
+      if (generator === undefined) {
         continue
       }
-      const customTransformer = getCustomTransformer(item.transformer)
-      if (customTransformer === undefined) {
-        continue
-      }
-      if (customTransformer.type === 'primaryColumn') {
-        event.entity[item.propertyName] = customTransformer.generate()
+      if (
+        generator.generateTrigger === 'create' ||
+        generator.generateTrigger === 'createAndUpdate'
+      ) {
+        event.entity[item.propertyName] = generator.generate?.(item)
       }
     }
     return event
@@ -336,13 +178,15 @@ export class AutoFillValueSubscriber implements EntitySubscriberInterface {
       if (event.entity[item.propertyName] !== undefined) {
         continue
       }
-      const customTransformer = getCustomTransformer(item.transformer)
-      if (customTransformer === undefined) {
+      const generator = getGenerator(item.transformer)
+      if (generator === undefined) {
         continue
       }
-      const customType = customTransformer.type
-      if (customType === 'updateAtColumn' || customType === 'updateIdColumn') {
-        event.entity[item.propertyName] = customTransformer.generate()
+      if (
+        generator.generateTrigger === 'update' ||
+        generator.generateTrigger === 'createAndUpdate'
+      ) {
+        event.entity[item.propertyName] = generator.generate?.(item)
       }
     }
   }
@@ -358,7 +202,7 @@ export class AutoFillValueSubscriber implements EntitySubscriberInterface {
       }
       // try {
       //   if (isDayjs(entity[item.propertyName])) {
-      //     entity[item.propertyName] = fastify.dayjs(entity[item.propertyName])
+      //     entity[item.propertyName] = dayjs(entity[item.propertyName])
       //   }
       // } catch (e) {}
     }
