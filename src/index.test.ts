@@ -33,7 +33,6 @@ describe('Base', async () => {
     const user = await c.var.orm.manager.save(User, { name: 'Alice' })
     return c.json(user)
   })
-
   app.get('/user/list', async c => {
     return c.json(await c.var.orm.manager.find(User))
   })
@@ -53,7 +52,7 @@ describe('Base', async () => {
     expect(res).not.toBeNull()
     expect(res.status).toBe(200)
     const resp = await res.json()
-    // [ { id: '84a68b70-3e3b-4d9f-82d3-2e5dcca9b0b9', name: 'Alice' } ]
+    // [ { id: '84a68b70-3e3b-4d9f-82d3-2e5dcca9b0b9', name: 'Bob' } ]
     expect(resp).toBeTypeOf('object')
     expect(resp[0].name).toBe('Alice')
   })

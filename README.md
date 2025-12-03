@@ -69,6 +69,121 @@ app.get('/users', async c => {
 })
 ```
 
+## 自定义注解
+
+### 1. @CreateAtColumn & @UpdateAtColumn
+
+声明，默认Date类型，若需要改成其他类型如Dayjs，需要通过 `setTimeGlobalColumn` 设置转换逻辑
+
+```ts
+import { CreateAtColumn, UpdateAtColumn } from '@seepine/hono-typeorm'
+
+@Entity('sys_user')
+export class User {
+  // ...
+
+  @CreateAtColumn()
+  createAt: Dayjs
+
+  @UpdateAtColumn()
+  updateAt: Dayjs
+}
+```
+
+设置生成逻辑（可选）
+
+```ts
+import { setTimeGlobalColumn } from '@seepine/hono-typeorm'
+
+setTimeGlobalColumn({
+  type: 'varchar', // 默认字符串
+  length: 50, // 默认长度50
+  // 设置日期生成和转换
+  transformer: {
+    generate: () => {
+      return dayjs()
+    },
+    to: (v?: Dayjs): string | undefined => {
+      if (!isDayjs(v)) {
+        return undefined
+      }
+      return v.toISOString()
+    },
+    from: (d?: string): Dayjs | undefined => (d ? dayjs(d) : undefined),
+  },
+})
+```
+
+### 2. @PrimaryColumn
+
+声明
+
+```ts
+import { PrimaryColumn } from '@seepine/hono-typeorm'
+
+@Entity('sys_user')
+export class User {
+  // 使用自定义主键注解
+  @PrimaryColumn()
+  id: string
+}
+```
+
+设置生成逻辑（必要）
+
+```ts
+import { setPrimaryGlobalColumn } from '@seepine/hono-typeorm'
+
+setPrimaryGlobalColumn({
+  type: 'varchar', // 默认字符串
+  length: 36, // 默认长度36
+  transformer: {
+    // 必填，返回主键生成策略
+    generate: () => {
+      return `id_${id++}`
+    },
+  },
+})
+```
+
+### 3. @CreateIdColumn & @UpdateIdColumn
+
+声明
+
+```ts
+import { CreateIdColumn, UpdateIdColumn } from '@seepine/hono-typeorm'
+
+@Entity('sys_user')
+export class User {
+  // ...
+
+  @CreateIdColumn()
+  createId: string
+
+  @UpdateIdColumn()
+  updateId: string
+}
+```
+
+设置生成逻辑（必要）
+
+```ts
+import { setUserIdGlobalColumn } from '@seepine/hono-typeorm'
+
+setUserIdGlobalColumn({
+  type: 'varchar', // 默认字符串
+  length: 36, // 默认长度36
+  // 必填，设置日期生成和转换
+  transformer: {
+    generate: () => {
+      // 例如从请求上下文获取当前用户信息
+      // 如何在全局中获取上下文可参考 @seepine/hono-global-context
+      return getCurrentContext().var.user.id
+    },
+  },
+})
+```
+
 ## 更多用法
 
 ### 1. 事务支持

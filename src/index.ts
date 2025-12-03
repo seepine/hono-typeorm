@@ -1,6 +1,9 @@
 import 'reflect-metadata'
 import { createMiddleware } from 'hono/factory'
 import { DataSource, EntitySchema, type LoggerOptions, type MixedList } from 'typeorm'
+import { AutoFillValueSubscriber } from './columns'
+
+export * from './columns'
 
 export type TypeormOpts = {
   /**
@@ -59,7 +62,7 @@ const getDataSourceInstance = (opts?: TypeormOpts) => {
     opts || {},
   )
 
-  const subscribers: MixedList<Function | string> = []
+  const subscribers: MixedList<Function | string> = [AutoFillValueSubscriber]
   if (Array.isArray(config.subscribers)) {
     subscribers.push(...config.subscribers)
   }
@@ -80,6 +83,12 @@ export const createTypeormMiddleware = (opts?: TypeormOpts | DataSource) => {
   let inst: DataSource
   if (opts instanceof DataSource) {
     inst = opts
+    inst.setOptions({
+      subscribers: [
+        AutoFillValueSubscriber,
+        ...(Array.isArray(inst.options.subscribers) ? inst.options.subscribers : []),
+      ],
+    })
   } else {
     inst = getDataSourceInstance({
       ...opts,
