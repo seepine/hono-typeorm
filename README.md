@@ -99,7 +99,7 @@ export function PrimarySnowflakeColumn(options?: ColumnOptions): PropertyDecorat
 
 ### 2. 使用
 
-设置生成逻辑（可选）
+在需要的字段上使用，则在新增时会按照 generate 方法自动生成id，当然若在新增时，手动赋值，则会以赋值为主
 
 ```ts
 @Entity('sys_user')
