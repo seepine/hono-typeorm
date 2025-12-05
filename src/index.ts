@@ -29,6 +29,10 @@ export type TypeormOpts = {
    */
   synchronize?: boolean
   /**
+   * 连接驱动
+   */
+  driver?: any
+  /**
    * Log level
    *
    * 日志级别
@@ -66,11 +70,28 @@ const getDataSourceInstance = (opts?: TypeormOpts) => {
   if (Array.isArray(config.subscribers)) {
     subscribers.push(...config.subscribers)
   }
+  if (config.type === undefined) {
+    if (config.url?.startsWith('postgresql://')) {
+      config.type = 'postgres'
+    } else if (config.url?.startsWith('mysql://')) {
+      config.type = 'mysql'
+    } else if (config.url?.startsWith('sqlite:')) {
+      config.type = 'sqlite'
+      config.url = config.url.substring(7)
+    } else if (config.url?.startsWith('better-sqlite3:')) {
+      config.type = 'better-sqlite3'
+      config.url = config.url.substring(15)
+    } else if (config.url?.startsWith('file:')) {
+      config.type = 'sqlite'
+      config.url = config.url.substring(5)
+    }
+  }
 
   const datasource = new DataSource({
     type: config.type as any,
     url: config.url,
     database: config.type === 'sqlite' || config.type === 'better-sqlite3' ? config.url : undefined,
+    driver: config.driver,
     synchronize: config.synchronize,
     logging: config.logLevel ?? ['error', 'warn'],
     entities: config.entities,
