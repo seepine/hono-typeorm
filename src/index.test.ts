@@ -21,6 +21,8 @@ describe('Base', async () => {
   const { orm, typeormMiddleware } = createTypeormMiddleware({
     type: 'better-sqlite3',
     url: ':memory:',
+    // 或者
+    // url: 'better-sqlite3::memory:',
     synchronize: true,
     entities: [User],
   })
