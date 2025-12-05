@@ -163,6 +163,14 @@ const manager = globalThis.orm.manager
 | `entities`    | `MixedList<Function/string/EntitySchema>` | 实体列表，如 `src/entity/*.ts`                                    |
 | `subscribers` | `Array<Function/string>`                  | 订阅者列表                                                        |
 
+### 支持的环境变量
+
+```ini
+DATABASE_TYPE=postgres
+DATABASE_URL=postgresql://myusername:mypassword@localhost:5432/mydatabase
+DATABASE_SYNCHRONIZE=true
+```
+
 ### 自定义 DataSource
 
 若配置选项不满足，可直接自定义数据源传入
