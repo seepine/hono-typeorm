@@ -1,7 +1,12 @@
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
 import { createTypeormMiddleware } from './index'
-import { Column, Entity, PrimaryGeneratedColumn, type DataSource } from 'typeorm'
+import {
+  Column,
+  Entity,
+  PrimaryGeneratedColumn,
+  type DataSource,
+} from 'typeorm'
 
 @Entity('sys_user')
 export class User {
@@ -31,11 +36,11 @@ describe('Base', async () => {
   globalThis.orm = orm
   await orm.initialize()
 
-  app.get('/user/add', async c => {
+  app.get('/user/add', async (c) => {
     const user = await c.var.orm.manager.save(User, { name: 'Alice' })
     return c.json(user)
   })
-  app.get('/user/list', async c => {
+  app.get('/user/list', async (c) => {
     return c.json(await c.var.orm.manager.find(User))
   })
   it('Add', async () => {

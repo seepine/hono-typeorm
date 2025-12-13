@@ -2,7 +2,6 @@ import {
   EventSubscriber,
   getMetadataArgsStorage,
   type ColumnOptions,
-  type ColumnType,
   type EntitySubscriberInterface,
   type InsertEvent,
   type LoadEvent,
@@ -95,11 +94,13 @@ export const buildColumn = (opts: BuildColumnOptions): PropertyDecorator => {
         transformer: {
           generateTrigger: opts.generateTrigger,
           generate: opts.generate,
-          to: val => {
+          to: (val) => {
             return opts.transformer?.to ? opts.transformer?.to(val) : val
           },
-          from: dbVal => {
-            return opts.transformer?.from ? opts.transformer?.from(dbVal) : dbVal
+          from: (dbVal) => {
+            return opts.transformer?.from
+              ? opts.transformer?.from(dbVal)
+              : dbVal
           },
         } as ValueTransformer,
         ...opts.columnOptions,

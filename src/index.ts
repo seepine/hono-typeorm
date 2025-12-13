@@ -1,6 +1,11 @@
 import 'reflect-metadata'
 import { createMiddleware } from 'hono/factory'
-import { DataSource, EntitySchema, type LoggerOptions, type MixedList } from 'typeorm'
+import {
+  DataSource,
+  EntitySchema,
+  type LoggerOptions,
+  type MixedList,
+} from 'typeorm'
 import { AutoFillValueSubscriber } from './columns'
 
 export * from './columns'
@@ -11,7 +16,14 @@ export type TypeormOpts = {
    *
    * @default env['DATABASE_TYPE'] || undefined
    */
-  type?: 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'better-sqlite3' | 'mongodb' | string
+  type?:
+    | 'postgres'
+    | 'mysql'
+    | 'mariadb'
+    | 'sqlite'
+    | 'better-sqlite3'
+    | 'mongodb'
+    | string
   /**
    * 连接url，例如postgres或mysql使用链接，sqlite使用文件路径
    *
@@ -65,23 +77,28 @@ const getDataSourceInstance = (opts?: TypeormOpts) => {
     } as TypeormOpts,
     opts || {},
   )
+  if (config.url === undefined) {
+    throw Error(
+      'config of database url cannot be undefined, please input from code or DATABASE_URL env',
+    )
+  }
 
   const subscribers: MixedList<Function | string> = [AutoFillValueSubscriber]
   if (Array.isArray(config.subscribers)) {
     subscribers.push(...config.subscribers)
   }
   if (config.type === undefined) {
-    if (config.url?.startsWith('postgresql://')) {
+    if (config.url.startsWith('postgresql://')) {
       config.type = 'postgres'
-    } else if (config.url?.startsWith('mysql://')) {
+    } else if (config.url.startsWith('mysql://')) {
       config.type = 'mysql'
-    } else if (config.url?.startsWith('sqlite:')) {
+    } else if (config.url.startsWith('sqlite:')) {
       config.type = 'sqlite'
       config.url = config.url.substring(7)
-    } else if (config.url?.startsWith('better-sqlite3:')) {
+    } else if (config.url.startsWith('better-sqlite3:')) {
       config.type = 'better-sqlite3'
       config.url = config.url.substring(15)
-    } else if (config.url?.startsWith('file:')) {
+    } else if (config.url.startsWith('file:')) {
       config.type = 'sqlite'
       config.url = config.url.substring(5)
     }
@@ -90,7 +107,10 @@ const getDataSourceInstance = (opts?: TypeormOpts) => {
   const datasource = new DataSource({
     type: config.type as any,
     url: config.url,
-    database: config.type === 'sqlite' || config.type === 'better-sqlite3' ? config.url : undefined,
+    database:
+      config.type === 'sqlite' || config.type === 'better-sqlite3'
+        ? config.url
+        : undefined,
     driver: config.driver,
     synchronize: config.synchronize,
     logging: config.logLevel ?? ['error', 'warn'],
@@ -107,7 +127,9 @@ export const createTypeormMiddleware = (opts?: TypeormOpts | DataSource) => {
     inst.setOptions({
       subscribers: [
         AutoFillValueSubscriber,
-        ...(Array.isArray(inst.options.subscribers) ? inst.options.subscribers : []),
+        ...(Array.isArray(inst.options.subscribers)
+          ? inst.options.subscribers
+          : []),
       ],
     })
   } else {

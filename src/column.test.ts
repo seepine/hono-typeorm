@@ -6,7 +6,9 @@ import { buildColumn, createTypeormMiddleware } from './index'
 let id = 0
 
 // 自定义主键装饰器
-export function PrimarySnowflakeColumn(options?: ColumnOptions): PropertyDecorator {
+export function PrimarySnowflakeColumn(
+  options?: ColumnOptions,
+): PropertyDecorator {
   return buildColumn({
     generateTrigger: 'create',
     generate: (): any => {
@@ -95,22 +97,22 @@ describe('CustomColumn', async () => {
   globalThis.orm = orm
   await orm.initialize()
 
-  app.get('/user/add', async c => {
+  app.get('/user/add', async (c) => {
     const user = await c.var.orm.manager.save(User, { name: 'Alice' })
     return c.json(user)
   })
-  app.get('/user/update', async c => {
+  app.get('/user/update', async (c) => {
     const repo = c.var.orm.getRepository(User)
     let user = await repo.findOneBy({ name: 'Alice' })
     if (!user) {
       return c.json({ error: 'User not found' }, 404)
     }
-    await new Promise(resolve => setTimeout(resolve, 250)) // 延迟，确保updateAt有变化
+    await new Promise((resolve) => setTimeout(resolve, 250)) // 延迟，确保updateAt有变化
     await repo.update(user.id, { name: 'Bob' })
     user = await repo.findOneBy({ id: user.id })
     return c.json(user)
   })
-  app.get('/user/list', async c => {
+  app.get('/user/list', async (c) => {
     return c.json(await c.var.orm.manager.find(User))
   })
 
