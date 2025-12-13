@@ -1,6 +1,6 @@
 {
   "name": "@seepine/hono-typeorm",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Hono middleware for TypeORM. Easily integrate TypeORM database access, connection, and transaction management into Hono apps.",
   "license": "MIT",
   "type": "module",
